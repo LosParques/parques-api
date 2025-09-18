@@ -1,0 +1,26 @@
+{
+  "name": "parques-api",
+  "version": "0.0.0",
+  "description": "",
+  "homepage": "https://github.com/LosParques/parques-api#readme",
+  "bugs": {
+    "url": "https://github.com/LosParques/parques-api/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LosParques/parques-api.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "create-docker": "docker run --name ParkServer -e POSTGRES_PASSWORD=mysecretpassword -e POSTGRES_DB=ParkServer -p 5433:5432 -d postgres:13.22",
+    "start-docker": "docker start ParkServer"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {}
+}
