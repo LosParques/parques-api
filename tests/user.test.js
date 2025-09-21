@@ -1,13 +1,15 @@
 const request = require('supertest');
-const app = require('../index'); // Assuming your Express app is exported from index.js
+const { app, startServer } = require('../index'); // Import both app and startServer
 const db = require('../src/config/dbConfig'); // Your DB connection
 require('dotenv').config(); // Load environment variables
 
 let jwtToken;
 let userId;
+let server; // Store the server instance
 
 beforeAll(async () => {
-  // Set up any test-specific initializations if needed (e.g., clearing the database)
+  // Start the server before the tests
+  server = startServer();
 });
 
 afterAll(async () => {
@@ -17,6 +19,9 @@ afterAll(async () => {
   }
   // Close DB connection or any other cleanup if needed
   await db.end();
+
+  // Close the server after the tests
+  server.close();
 });
 
 describe('User Authentication Tests', () => {

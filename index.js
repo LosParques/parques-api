@@ -6,9 +6,18 @@ const userRoutes = require('./src/routes/userRoutes');
 app.use(express.json());
 app.use('/', userRoutes);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-});
+const startServer = () => {
+  const PORT = process.env.PORT || 3000;
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  });
+  return server;
+};
 
-module.exports = app;
+// This ensures that the server starts when you run `node index.js`
+if (require.main === module) {
+  startServer();  // Only start the server when running this file directly
+}
+
+// Export both the app and the startServer function for use in tests
+module.exports = { app, startServer };
