@@ -188,3 +188,4 @@ This project is licensed under the GNU General Public License v3.0 or later - se
 ### Acknowledgments
 
 * Thanks to the authors of the libraries used in this project: [Express.js](https://expressjs.com/), [PostgreSQL](https://www.postgresql.org/), [JWT](https://jwt.io/), [bcrypt](https://www.npmjs.com/package/bcrypt), and [Jest](https://jestjs.io/).
+
