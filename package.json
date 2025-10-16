@@ -17,8 +17,12 @@
   "scripts": {
     "start": "node index.js",
     "test": "jest",
-    "create-docker": "docker run --name ParkServer -e POSTGRES_PASSWORD=mysecretpassword -e POSTGRES_DB=ParkServer -p 5433:5432 -d postgres:13.22",
+    "create-docker": "docker run --name ParkServer --network park-net -e POSTGRES_PASSWORD=mysecretpassword -e POSTGRES_DB=ParkServer -p 5433:5432 -d postgres:13.22",
     "start-docker": "docker start ParkServer",
+    "create-network": "docker network create park-net",
+    "build-api" : "docker build . -t parques-api",
+    "create-api" : "docker run --name ParquesAPI --network park-net --env-file ./.env -p 3000:3000 parques-api",
+    "start-api" : "docker start ParquesAPI",
     "init-db": "npm run create-docker && sleep 10 && npm run create-schema && npm run seed-db",
     "create-schema": "cat ./init.sql | docker exec -i ParkServer psql -U postgres -d ParkServer",
     "seed-db": "cat ./seed.sql | docker exec -i ParkServer psql -U postgres -d ParkServer"
