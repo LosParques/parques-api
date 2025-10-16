@@ -24,6 +24,7 @@ Before running the project, ensure you have the following installed:
 
 - [Node.js](https://nodejs.org/) (>= v16)
 - [Docker](https://www.docker.com/)
+- [LosParques](https://github.com/LosParques/LosParques) (via Docker)
 - [PostgreSQL](https://www.postgresql.org/) (via Docker in this project)
 
 ### Steps to get started
@@ -93,15 +94,31 @@ Build the docker file by running:
 npm run build-api
 ```
 
-8. **Start the server Docker**:
+8. **Build the WebServer Dockerfile**
+
+Follow LosParques instructions to build the webServer Dockerfile
+
+- [LosParques](https://github.com/LosParques/LosParques)
+
+9. **Start the Docker-Compose script**:
 
 Run the Api Docker by running:
 
 ```bash
-npm run create-api
+docker compose up -d
 ```
 
-The server will start on `http://localhost:3000` (or the port defined in your `.env` file).
+or
+
+```bash
+docker compose up
+```
+
+to see it run.
+
+The Api server will start on `http://localhost:3000` (or the port defined in your `.env` file).
+The webserver will run in `http://localhost:80`.
+The postgres database will run on the port 5432  (or the port defined in your `.env` file).
 
 ## Endpoints
 
