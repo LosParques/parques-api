@@ -15,8 +15,36 @@ concurrency:
 
 jobs:
   build-test:
-    name: Install • Test • Build
+    name: Install • Init DB • Test
     runs-on: ubuntu-latest
+
+    # 1) Servicio Postgres (Docker) para los tests
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: ParkServer
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        # Esperar a que esté saludable antes de seguir
+        options: >-
+          --health-cmd="pg_isready -U postgres -d ParkServer"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    # 2) Variables que tu app/tests usarán para conectarse
+    env:
+      NODE_ENV: test
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: ParkServer
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      # Si tu código usa una sola cadena:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ParkServer
 
     steps:
       - name: Checkout
@@ -28,26 +56,47 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install (npm ci)
+      - name: Install deps
         run: npm ci
 
+      # 3) Cliente psql para poder ejecutar init.sql y seed.sql
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      # 4) Esperar (extra) por si el healthcheck tarda
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..30}; do
+            PGPASSWORD=$PGPASSWORD psql -h $PGHOST -U $PGUSER -d $PGDATABASE -c "SELECT 1" && break
+            echo "Postgres not ready yet... ($i/30)"
+            sleep 2
+          done
+
+      # 5) Crear esquema y datos
+      - name: Apply schema (init.sql)
+        run: |
+          PGPASSWORD=$PGPASSWORD psql -h $PGHOST -U $PGUSER -d $PGDATABASE -f init.sql
+
+      - name: Seed data (seed.sql)
+        run: |
+          PGPASSWORD=$PGPASSWORD psql -h $PGHOST -U $PGUSER -d $PGDATABASE -f seed.sql
+
+      # 6) Lint opcional
       - name: Lint (optional)
         run: npm run lint --if-present
 
-      - name: Test (npm test)
-        run: npm test --if-present
-        # --if-present: no falla si aún no hay script "test"
+      # 7) Tests (ahora sí reales, con DB)
+      - name: Test
+        run: npm test
 
-      - name: Build (optional)
-        run: npm run build --if-present
-        # muchas APIs no requieren build; si tienes TS o transpila, esto lo valida
-
-      - name: Package artifacts (coverage/build/logs)
+      # 8) Artefactos útiles (coverage/logs) si existen
+      - name: Upload artifacts (coverage/logs)
         uses: actions/upload-artifact@v4
         with:
           name: backend-artifacts
           path: |
             coverage/**
-            build/**
             logs/**
           if-no-files-found: ignore
