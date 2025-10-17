@@ -53,8 +53,10 @@
         networks:
           - parques-network
         ports:
-          - "80:80"
+          - "8080:80"
         depends_on:
          - api
+        environment:
+          VITE_API_URL: ${VITE_API_URL}
 
 
