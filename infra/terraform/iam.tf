@@ -53,8 +53,4 @@ resource "aws_iam_role_policy_attachment" "ecs_task_policy_attach" {
   policy_arn = aws_iam_policy.ecs_task_policy.arn
 }
 
-# outputs
-output "ecs_task_execution_role_arn" {
-  description = "ARN del rol IAM que ECS Tasks utilizarán"
-  value       = aws_iam_role.ecs_task_execution_role.arn
-}
+

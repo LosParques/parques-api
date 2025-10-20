@@ -31,13 +31,4 @@ resource "aws_ecr_repository" "frontend_repo" {
   }
 }
 
-#outputs
-output "ecr_backend_url" {
-  description = "URL del repositorio ECR para el backend"
-  value       = aws_ecr_repository.backend_repo.repository_url
-}
 
-output "ecr_frontend_url" {
-  description = "URL del repositorio ECR para el frontend"
-  value       = aws_ecr_repository.frontend_repo.repository_url
-}

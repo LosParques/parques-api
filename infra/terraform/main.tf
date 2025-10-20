@@ -12,5 +12,5 @@ terraform {
 # Define la región y perfil de autenticación
 provider "aws" {
   region  = var.aws_region
-  profile = var.aws_profile  # Perfil configurado con AWS CLI
+  profile = var.aws_profile # Perfil configurado con AWS CLI
 }
