@@ -9,3 +9,15 @@ variable "aws_profile" {
   type        = string
   default     = "parques"
 }
+
+variable "project_name" {
+  description = "Nombre base del proyecto"
+  type        = string
+  default     = "parques-api"
+}
+
+variable "environment" {
+  description = "Ambiente de despliegue (dev, staging, prod)"
+  type        = string
+  default     = "dev"
+}
