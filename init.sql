@@ -10,6 +10,3 @@ CREATE TABLE USERS (
     cellphone_number VARCHAR(15) NOT NULL,
     group_role rol_usuario DEFAULT 'User'
 );
-
-SELECT * FROM USERS;
-

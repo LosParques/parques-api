@@ -1,0 +1,62 @@
+    networks:
+      park-net:
+        external: true
+      parques-network:
+        external: true
+
+    volumes:
+      db_data: {}
+
+    services:
+      db:
+        image: postgres:13.22
+        container_name: ParkServer
+        networks:
+          - park-net
+        ports:
+          - "5432:5432"
+        build:
+          context: .
+          target: db
+        volumes:
+          - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql
+          - ./seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+          - db_data:/var/lib/postgresql/data
+        environment:
+          POSTGRES_DB: ${DB_NAME}
+          POSTGRES_USER: ${DB_USER}
+          POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+      api:
+        image: parques-api:latest
+        container_name: ParquesAPI
+        networks:
+          - park-net
+          - parques-network
+        ports:
+          - "3000:3000"
+        depends_on:
+          - db
+        volumes:
+          - .:/app
+          - /app/node_modules
+        environment:
+          DB_HOST: ${DB_HOST}
+          DB_PORT: ${DB_PORT}
+          DB_USER: ${DB_USER}
+          DB_PASSWORD: ${DB_PASSWORD}
+          DB_NAME: ${DB_NAME}
+          JWT_SECRET: ${JWT_SECRET}
+      webapp:
+        image: losparques:latest
+        container_name: LosParques
+        networks:
+          - parques-network
+        ports:
+          - "8080:80"
+        depends_on:
+         - api
+        environment:
+          VITE_API_URL: ${VITE_API_URL}
+
+

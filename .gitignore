@@ -143,13 +143,16 @@ dist
 
 # End of https://www.toptal.com/developers/gitignore/api/node
 
-# Terraform local files
+# Terraform
 .terraform/
+*.tfstate
+*.tfstate.backup
+*.log
+crash.log
+terraform.tfvars
 .terraform.lock.hcl
 terraform.tfstate
 terraform.tfstate.backup
-terraform.tfvars
-crash.log
 override.tf
 override.tf.json
 *_override.tf
