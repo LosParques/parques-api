@@ -1,0 +1,107 @@
+name: CI (Backend)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Install • Init DB • Test
+    runs-on: ubuntu-latest
+
+    # 1) Postgres como service (simula tu Docker local)
+    services:
+      postgres:
+        image: postgres:15
+        # El contenedor expone 5432; lo mapeamos al 5433 del host, como en tu README
+        ports:
+          - 5433:5432
+        env:
+          POSTGRES_DB: ParkServer
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: mysecretpassword
+        options: >-
+          --health-cmd="pg_isready -U postgres -d ParkServer"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    # 2) Variables que TU código y tests esperan, según README
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5433
+      DB_USER: postgres
+      DB_PASSWORD: mysecretpassword
+      DB_NAME: ParkServer
+      JWT_SECRET: test_jwt_secret_ci
+
+      # psql (cliente) usará estas
+      PGHOST: localhost
+      PGPORT: 5433
+      PGUSER: postgres
+      PGPASSWORD: mysecretpassword
+      PGDATABASE: ParkServer
+
+      # Por si tu app usa una sola cadena:
+      DATABASE_URL: postgresql://postgres:mysecretpassword@localhost:5433/ParkServer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres (healthcheck + ping)
+        run: |
+          for i in {1..30}; do
+            psql -c "SELECT 1" && break
+            echo "Postgres not ready yet... ($i/30)"
+            sleep 2
+          done
+
+      # 3) Crear esquema y poblar datos (como tu README pero dentro del runner)
+      #    Si tienes scripts npm como "init-db", puedes usarlos en vez de psql -f.
+      - name: Apply schema (init.sql)
+        run: |
+          psql -f init.sql
+
+      - name: Seed data (seed.sql)
+        run: |
+          psql -f seed.sql
+
+      - name: Lint (optional)
+        run: npm run lint --if-present
+
+      - name: Test (Jest)
+        run: npm test
+
+      - name: Upload artifacts (coverage/logs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-artifacts
+          path: |
+            coverage/**
+            logs/**
+          if-no-files-found: ignore

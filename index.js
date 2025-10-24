@@ -6,7 +6,6 @@ const userRoutes = require('./src/routes/userRoutes');
 
 app.use(express.json());
 
-
 app.use(cors({
   origin: ["http://localhost:8080"],
   credentials: true,
@@ -18,9 +17,7 @@ app.use((req, res, next) => {
   next();
 });
 
-
 app.use('/', userRoutes);
-
 
 const startServer = () => {
   const PORT = process.env.PORT || 3000;
@@ -30,13 +27,9 @@ const startServer = () => {
   return server;
 };
 
-
-
-
 // This ensures that the server starts when you run `node index.js`
 if (require.main === module) {
-  startServer();  // Only start the server when running this file directly
+  startServer();
 }
 
-// Export both the app and the startServer function for use in tests
 module.exports = { app, startServer };

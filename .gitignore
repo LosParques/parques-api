@@ -151,3 +151,11 @@ dist
 crash.log
 terraform.tfvars
 .terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfstate
+*.tfstate.*
