@@ -46,17 +46,28 @@ npm install
 Create a `.env` file in the root directory with the following variables:
 
 ```bash
-DB_HOST=localhost
-DB_PORT=5433
+DB_HOST=ParkServer
+DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=mysecretpassword
 DB_NAME=ParkServer
 JWT_SECRET=your_jwt_secret_key
+
 ```
 
 Replace `your_jwt_secret_key` with a secure key to sign JWT tokens.
 
-4. **Run Docker for PostgreSQL**:
+
+4. **Create Docker Network**:
+
+Create a Docker network so both dockers can connect to each other.
+
+```bash
+npm run create-network
+```
+
+
+5. **Run Docker for PostgreSQL**:
 
 You can create a PostgreSQL Docker container by running the following command:
 
@@ -66,7 +77,7 @@ npm run create-docker
 
 This will create and run a PostgreSQL container with the necessary environment variables.
 
-5. **Initialize the Database**:
+6. **Initialize the Database**:
 
 Once the Docker container is running, initialize the database schema and seed it with test data by running:
 
@@ -74,12 +85,20 @@ Once the Docker container is running, initialize the database schema and seed it
 npm run init-db
 ```
 
-6. **Start the server**:
+7. **Build the Dockerfile**:
 
-Run the server using:
+Build the docker file by running:
 
 ```bash
-npm start
+npm run build-api
+```
+
+8. **Start the server Docker**:
+
+Run the Api Docker by running:
+
+```bash
+npm run create-api
 ```
 
 The server will start on `http://localhost:3000` (or the port defined in your `.env` file).
@@ -173,6 +192,24 @@ docker stop ParkServer
 
 ```bash
 docker rm ParkServer
+```
+
+* **Start  the API container**:
+
+```bash
+npm run start-api
+```
+
+* **Stop the API container**:
+
+```bash
+docker stop ParquesAPI
+```
+
+* **Remove the API container**:
+
+```bash
+docker rm ParquesAPI
 ```
 
 ## Contribution
