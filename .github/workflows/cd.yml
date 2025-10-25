@@ -25,7 +25,8 @@ env:
 
   # ---- modo simulación (sin credenciales AWS) ----
   DRY_RUN: "true"
-  GHCR_IMAGE: ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+  # GHCR exige minúsculas en el owner
+  GHCR_IMAGE: ghcr.io/${{ toLower(github.repository_owner) }}/parques-api-backend:${{ github.sha }}
 
 jobs:
   build-and-publish-ghcr:
