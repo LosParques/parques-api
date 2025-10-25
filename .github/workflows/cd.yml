@@ -50,40 +50,47 @@ jobs:
   deploy-aws:
     needs: build-and-publish-ghcr
     runs-on: ubuntu-latest
+
+    # Copiamos secrets a ENV para poder usarlos en 'if:'
+    env:
+      OIDC_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+      AKID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      ASECRET:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      STS:      ${{ secrets.AWS_SESSION_TOKEN }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       # OIDC si existe Y no es DRY_RUN
       - name: Configure AWS Credentials (OIDC)
-        if: env.DRY_RUN != 'true' && secrets.AWS_OIDC_ROLE_ARN != ''
+        if: env.DRY_RUN != 'true' && env.OIDC_ARN != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-to-assume: ${{ env.OIDC_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       # Access Keys si existen Y no es DRY_RUN
       - name: Configure AWS Credentials (Access Keys)
-        if: env.DRY_RUN != 'true' && secrets.AWS_OIDC_ROLE_ARN == '' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''
+        if: env.DRY_RUN != 'true' && env.OIDC_ARN == '' && env.AKID != '' && env.ASECRET != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id:     ${{ env.AKID }}
+          aws-secret-access-key: ${{ env.ASECRET }}
+          aws-session-token:     ${{ env.STS }}
           aws-region:            ${{ env.AWS_REGION }}
-          # aws-session-token:   ${{ secrets.AWS_SESSION_TOKEN }} # si usan STS
 
-      # Solo imprime identidad cuando sí hubo credenciales y no es DRY_RUN
-      - name: Who am I?
-        if: env.DRY_RUN != 'true' && (secrets.AWS_OIDC_ROLE_ARN != '' || (secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''))
+      - name: Who am I? (debug)
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
-        if: env.DRY_RUN != 'true' && (secrets.AWS_OIDC_ROLE_ARN != '' || (secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''))
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build & Push image to ECR
-        if: env.DRY_RUN != 'true' && (secrets.AWS_OIDC_ROLE_ARN != '' || (secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''))
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
@@ -93,7 +100,7 @@ jobs:
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
 
       - name: Render task definition
-        if: env.DRY_RUN != 'true' && (secrets.AWS_OIDC_ROLE_ARN != '' || (secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''))
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         id: taskdef
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -102,7 +109,7 @@ jobs:
           image: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
       - name: Deploy to Amazon ECS
-        if: env.DRY_RUN != 'true' && (secrets.AWS_OIDC_ROLE_ARN != '' || (secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''))
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.taskdef.outputs.task-definition }}
