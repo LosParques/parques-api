@@ -2,7 +2,7 @@ name: CD (Backend - Deploy to AWS)
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "feature/SCRUM-13" ]
   workflow_dispatch:
 
 concurrency:
@@ -12,9 +12,10 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  packages: write   # para publicar a GHCR
 
 env:
-  AWS_REGION: us-east-1                         
+  AWS_REGION: us-east-1
   ECR_REPOSITORY: parques-api-backend
   ECS_CLUSTER: parques-api-ecs-cluster
   ECS_SERVICE: parques-api-backend-service
@@ -22,40 +23,88 @@ env:
   CONTAINER_NAME: backend
   IMAGE_TAG: ${{ github.sha }}
 
+  # ---- modo simulación (sin credenciales AWS) ----
+  DRY_RUN: "true"
+
 jobs:
-  build-push-deploy:
+  build-and-publish-ghcr:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Calcula la imagen GHCR en minúsculas y la guarda en $GITHUB_ENV
+      - name: Compute GHCR image (lowercase)
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/parques-api-backend:${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: docker build -t "$GHCR_IMAGE" .
+
+      - name: Push image to GHCR (evidencia)
+        run: docker push "$GHCR_IMAGE"
+
+  deploy-aws:
+    needs: build-and-publish-ghcr
+    runs-on: ubuntu-latest
+
+    # Copiamos secrets a ENV para poder usarlos en 'if:'
+    env:
+      OIDC_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+      AKID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      ASECRET:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      STS:      ${{ secrets.AWS_SESSION_TOKEN }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1) Autenticación AWS por OIDC (sin llaves)
-      - name: Configure AWS Credentials
+      # OIDC si existe Y no es DRY_RUN
+      - name: Configure AWS Credentials (OIDC)
+        if: env.DRY_RUN != 'true' && env.OIDC_ARN != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-to-assume: ${{ env.OIDC_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 2) Login a ECR
+      # Access Keys si existen Y no es DRY_RUN
+      - name: Configure AWS Credentials (Access Keys)
+        if: env.DRY_RUN != 'true' && env.OIDC_ARN == '' && env.AKID != '' && env.ASECRET != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ env.AKID }}
+          aws-secret-access-key: ${{ env.ASECRET }}
+          aws-session-token:     ${{ env.STS }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Who am I? (debug)
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
+        run: aws sts get-caller-identity
+
       - name: Login to Amazon ECR
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 3) Build & Push de la imagen del backend
-      - name: Build & Push image
+      - name: Build & Push image to ECR
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          # (opcional) etiqueta 'latest' para diagnósticos manuales
-          docker tag  $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} \
-                      $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+          docker tag  $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
 
-      # 4) Render del Task Definition con la imagen exacta del commit
       - name: Render task definition
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         id: taskdef
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -63,8 +112,8 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
-      # 5) Despliegue a ECS y espera estabilidad
       - name: Deploy to Amazon ECS
+        if: env.DRY_RUN != 'true' && (env.OIDC_ARN != '' || (env.AKID != '' && env.ASECRET != ''))
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.taskdef.outputs.task-definition }}
