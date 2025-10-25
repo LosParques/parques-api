@@ -12,8 +12,10 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  packages: write  # para publicar en GHCR con GITHUB_TOKEN
 
 env:
+  # ---- Ajusta estos 4 cuando ya tengas AWS ----
   AWS_REGION: us-east-1
   ECR_REPOSITORY: parques-api-backend
   ECS_CLUSTER: parques-api-ecs-cluster
@@ -22,38 +24,78 @@ env:
   CONTAINER_NAME: backend
   IMAGE_TAG: ${{ github.sha }}
 
+  # ---- SIMULACIÓN mientras no hay credenciales AWS ----
+  # Pon DRY_RUN=true para saltar los pasos de AWS.
+  # Cuando tengas credenciales, cámbialo a false o bórralo.
+  DRY_RUN: "true"
+
+  # Imagen espejo para evidencias (no AWS)
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+
 jobs:
-  build-push-deploy:
+  build-and-publish-ghcr:   # corre SIEMPRE, sirve para evidencias (build → push)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ⚠️ Requiere el secret AWS_OIDC_ROLE_ARN en este repo
-      - name: Configure AWS Credentials
+      # Login a GHCR usando GITHUB_TOKEN (no necesitas secrets)
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          docker build -t ${{ env.GHCR_IMAGE }} .
+
+      - name: Push image to GHCR (evidencia sin AWS)
+        run: |
+          docker push ${{ env.GHCR_IMAGE }}
+
+  deploy-aws:
+    needs: build-and-publish-ghcr
+    runs-on: ubuntu-latest
+    # Despliega a AWS SOLO si NO es DRY_RUN y existen credenciales (OIDC o Keys)
+    if: env.DRY_RUN != 'true' && (secrets.AWS_OIDC_ROLE_ARN != '' || (secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Opción A: OIDC si existe
+      - name: Configure AWS Credentials (OIDC)
+        if: secrets.AWS_OIDC_ROLE_ARN != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # (opcional) diagnóstico de credenciales
-      - name: Who am I?
+      # Opción B: Access Keys si existen (temporal)
+      - name: Configure AWS Credentials (Access Keys)
+        if: secrets.AWS_OIDC_ROLE_ARN == '' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+          # aws-session-token:   ${{ secrets.AWS_SESSION_TOKEN }} # si usan STS
+
+      - name: Who am I? (debug)
         run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push image
+      - name: Build & Push image to ECR
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-
-          # (opcional) etiquetar latest sólo como ayuda manual
-          docker tag  $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} \
-                      $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+          docker tag  $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
 
       - name: Render task definition
