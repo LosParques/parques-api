@@ -2,7 +2,7 @@ name: CD (Backend - Deploy to AWS)
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "feature/SCRUM-13" ]
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: us-east-1                         
+  AWS_REGION: us-east-1
   ECR_REPOSITORY: parques-api-backend
   ECS_CLUSTER: parques-api-ecs-cluster
   ECS_SERVICE: parques-api-backend-service
@@ -25,36 +25,37 @@ env:
 jobs:
   build-push-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1) Autenticación AWS por OIDC (sin llaves)
+      # ⚠️ Requiere el secret AWS_OIDC_ROLE_ARN en este repo
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 2) Login a ECR
+      # (opcional) diagnóstico de credenciales
+      - name: Who am I?
+        run: aws sts get-caller-identity
+
       - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 3) Build & Push de la imagen del backend
       - name: Build & Push image
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          # (opcional) etiqueta 'latest' para diagnósticos manuales
+
+          # (opcional) etiquetar latest sólo como ayuda manual
           docker tag  $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} \
                       $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
           docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
 
-      # 4) Render del Task Definition con la imagen exacta del commit
       - name: Render task definition
         id: taskdef
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -63,7 +64,6 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
-      # 5) Despliegue a ECS y espera estabilidad
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
